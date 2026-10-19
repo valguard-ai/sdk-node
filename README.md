@@ -47,7 +47,7 @@ const raw = await client.chat.completions.create({
 }).withResponse();
 
 console.log(vg.parseResponseHeaders(raw.response.headers));
-console.log(raw.parse());
+console.log(raw.data);
 ```
 
 ## Fetch-only (no OpenAI SDK)
