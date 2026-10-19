@@ -3,34 +3,53 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 /** HTTP header for outbound webhook HMAC (validation, orchestration, health). */
 export const WEBHOOK_SIGNATURE_HEADER = "X-VG-Signature";
 
-/**
- * Returns `sha256=<hex>` HMAC-SHA256 over the raw request body bytes.
- * @param {string | Buffer | Uint8Array} rawBody
- * @param {string} secret
- */
-export function signWebhookPayload(rawBody, secret) {
-  const digest = createHmac("sha256", secret)
-    .update(rawBody)
-    .digest("hex");
-  return `sha256=${digest}`;
+function asBuffer(rawBody) {
+  if (typeof rawBody === "string") return Buffer.from(rawBody, "utf8");
+  return Buffer.from(rawBody);
 }
 
 /**
- * Verify `X-VG-Signature` on an inbound ValGuard webhook delivery.
- * @param {string | Buffer | Uint8Array} rawBody Raw request body (not re-serialized JSON)
- * @param {string | null | undefined} signatureHeader Value of `X-VG-Signature`
- * @param {string} secret Deployment `OUTBOUND_WEBHOOK_HMAC_SECRET`
+ * Returns `t=<unix>,v1=<hex>` HMAC-SHA256 over `<unix>.<raw body>`.
+ * @param {string | Buffer | Uint8Array} rawBody
+ * @param {string} secret
+ * @param {number} [unix]
+ */
+export function signWebhookPayload(rawBody, secret, unix = Math.floor(Date.now() / 1000)) {
+  const digest = createHmac("sha256", secret)
+    .update(`${unix}.`)
+    .update(asBuffer(rawBody))
+    .digest("hex");
+  return `t=${unix},v1=${digest}`;
+}
+
+/**
+ * Verify `X-VG-Signature`. Accepts the timestamped format and legacy `sha256=`.
+ * @param {string | Buffer | Uint8Array} rawBody
+ * @param {string | null | undefined} signatureHeader
+ * @param {string} secret
+ * @param {{ maxAgeSeconds?: number | null }} [opts]
  * @returns {boolean}
  */
-export function verifyWebhookSignature(rawBody, signatureHeader, secret) {
-  if (!signatureHeader || !secret) {
+export function verifyWebhookSignature(rawBody, signatureHeader, secret, opts = {}) {
+  if (!signatureHeader || !secret) return false;
+  const header = String(signatureHeader).trim();
+  const maxAge = opts.maxAgeSeconds === undefined ? 300 : opts.maxAgeSeconds;
+  const stamped = header.match(/^t=(\d+),v1=([0-9a-f]+)$/i);
+  let expected;
+  if (stamped) {
+    const unix = Number(stamped[1]);
+    if (maxAge != null && Math.abs(Math.floor(Date.now() / 1000) - unix) > maxAge) {
+      return false;
+    }
+    expected = signWebhookPayload(rawBody, secret, unix);
+  } else if (header.startsWith("sha256=")) {
+    const digest = createHmac("sha256", secret).update(asBuffer(rawBody)).digest("hex");
+    expected = `sha256=${digest}`;
+  } else {
     return false;
   }
-  const expected = signWebhookPayload(rawBody, secret);
   const a = Buffer.from(expected, "utf8");
-  const b = Buffer.from(signatureHeader, "utf8");
-  if (a.length !== b.length) {
-    return false;
-  }
+  const b = Buffer.from(header, "utf8");
+  if (a.length !== b.length) return false;
   return timingSafeEqual(a, b);
 }

@@ -5,6 +5,7 @@ import {
   signWebhookPayload,
   WEBHOOK_SIGNATURE_HEADER,
 } from "./webhook.js";
+import { verifyEvidence, verifyProof, EVIDENCE_TYP } from "./evidence.js";
 
 export {
   parseValidationHeaders,
@@ -13,6 +14,9 @@ export {
   verifyWebhookSignature,
   signWebhookPayload,
   WEBHOOK_SIGNATURE_HEADER,
+  verifyEvidence,
+  verifyProof,
+  EVIDENCE_TYP,
 };
 
 /**
@@ -25,6 +29,11 @@ export {
  * @property {string} [requestId] Optional client correlation id
  * @property {string} [internalSecret] `X-VG-Internal-Secret` for `/internal/*` endpoints (CI/staging)
  * @property {string} [projectId] `X-VG-Project-Id` when using internal secret auth
+ * @property {string} [idempotencyKey] `X-VG-Idempotency-Key` for playbook replay
+ * @property {string} [approvalMode] `X-VG-Approval-Mode` (`async` when the playbook has a human approval step)
+ * @property {string} [traceparent] W3C `traceparent` ingress header
+ * @property {string} [parentSpanId] `X-VG-Parent-Span-Id`
+ * @property {string} [agentId] `X-VG-Agent-Id` trace label
  */
 
 /**
@@ -84,9 +93,8 @@ export function createValGuardClient(opts) {
     defaultHeaders: buildHeaders(opts),
 
     openaiOptions() {
-      const defaultHeaders = opts.flowSlug
-        ? { "X-VG-Flow": opts.flowSlug }
-        : { "X-VG-Agent": agent };
+      const defaultHeaders = { ...buildHeaders(opts) };
+      delete defaultHeaders.Authorization;
       return {
         apiKey: opts.apiKey,
         baseURL: `${base}/v1`,
@@ -117,6 +125,27 @@ export function createValGuardClient(opts) {
       return createValGuardClient({
         ...opts,
         ragSources: sources.map(normalizeRagSource),
+      });
+    },
+
+    withIdempotencyKey(idempotencyKey) {
+      return createValGuardClient({ ...opts, idempotencyKey });
+    },
+
+    /** @param {"async" | string} approvalMode */
+    withApprovalMode(approvalMode) {
+      return createValGuardClient({ ...opts, approvalMode });
+    },
+
+    /**
+     * @param {{ traceparent?: string, parentSpanId?: string, agentId?: string }} trace
+     */
+    withTrace(trace) {
+      return createValGuardClient({
+        ...opts,
+        traceparent: trace?.traceparent,
+        parentSpanId: trace?.parentSpanId,
+        agentId: trace?.agentId,
       });
     },
 
@@ -249,6 +278,21 @@ function buildHeaders(opts) {
   if (opts.ragSources?.length) {
     headers["X-VG-Sources"] = JSON.stringify(opts.ragSources.map(normalizeRagSource));
   }
+  if (opts.idempotencyKey) {
+    headers["X-VG-Idempotency-Key"] = opts.idempotencyKey;
+  }
+  if (opts.approvalMode) {
+    headers["X-VG-Approval-Mode"] = opts.approvalMode;
+  }
+  if (opts.traceparent) {
+    headers.traceparent = opts.traceparent;
+  }
+  if (opts.parentSpanId) {
+    headers["X-VG-Parent-Span-Id"] = opts.parentSpanId;
+  }
+  if (opts.agentId) {
+    headers["X-VG-Agent-Id"] = opts.agentId;
+  }
 
   return headers;
 }
@@ -376,6 +420,23 @@ export default class ValGuard {
 
   withRAGSources(sources) {
     return new ValGuard({ ...this._optsRaw, ragSources: sources.map(normalizeRagSource) });
+  }
+
+  withIdempotencyKey(idempotencyKey) {
+    return new ValGuard({ ...this._optsRaw, idempotencyKey });
+  }
+
+  withApprovalMode(approvalMode) {
+    return new ValGuard({ ...this._optsRaw, approvalMode });
+  }
+
+  withTrace(trace) {
+    return new ValGuard({
+      ...this._optsRaw,
+      traceparent: trace?.traceparent,
+      parentSpanId: trace?.parentSpanId,
+      agentId: trace?.agentId,
+    });
   }
 
   parseResponseHeaders(headers) {

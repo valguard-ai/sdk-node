@@ -9,9 +9,7 @@ Docs: set `VG_PROXY` to your layer URL (production default is configured in depl
 ## Install
 
 ```bash
-npm install github:valguard-ai/sdk-node openai
-# after npm publish:
-# npm install @valguard/sdk-node openai
+npm install @valguard/sdk-node openai
 ```
 
 ## Environment
@@ -23,19 +21,30 @@ export VG_AGENT="invoice_extraction_agent"
 export VG_PROVIDER_KEY="sk-..."             # optional BYOK upstream key
 ```
 
+## withAgent and withPlaybook
+
+`withAgent` pins the `X-VG-Agent` slug and returns a new client. `withPlaybook` pins `X-VG-Flow` instead. The original client is unchanged. Do not set both on one client.
+
+```js
+import { ValGuard } from "@valguard/sdk-node";
+
+const invoice = ValGuard.fromEnv().withAgent("invoice_extraction_agent");
+const playbook = ValGuard.fromEnv().withPlaybook("invoice-processing");
+```
+
 ## OpenAI SDK (recommended)
 
 ```js
 import OpenAI from "openai";
 import { ValGuard } from "@valguard/sdk-node";
 
-const vg = ValGuard.fromEnv();
+const vg = ValGuard.fromEnv().withAgent(process.env.VG_AGENT ?? "default");
 const client = new OpenAI(vg.openaiOptions());
 
-const raw = await client.withRawResponse.chat.completions.create({
+const raw = await client.chat.completions.create({
   model: "openai/gpt-4o-mini",
   messages: [{ role: "user", content: "Extract invoice JSON" }],
-});
+}).withResponse();
 
 console.log(vg.parseResponseHeaders(raw.response.headers));
 console.log(raw.parse());
@@ -92,6 +101,9 @@ Soft-fail agents return HTTP 200 with `{ valid: false, validation: {...} }` — 
 |--------|---------|
 | `ValGuard` | Main client class + `fromEnv()` |
 | `createValGuardClient()` | Functional factory |
-| `parseValidationHeaders()` | Read `X-VG-*` headers |
+| `parseValidationHeaders()` | Read `X-VG-*` headers, including repair, cache, trace, and approval |
+| `verifyProof()` / `verifyEvidence()` | Offline HMAC check of a Proof download (`valguard-evidence/1`) |
 | `parseValGuardError()` | Parse error / soft-fail JSON |
 | `ValGuardError` | Thrown on non-2xx responses |
+
+`withAgent(slug)` sets `X-VG-Agent`. `withPlaybook(slug)` sets `X-VG-Flow` and clears the agent header. `withApprovalMode("async")` sends `X-VG-Approval-Mode` for playbooks that pause on a human approval step. `openaiOptions()` forwards `X-Provider-Key` when `providerKey` is set. `withIdempotencyKey` sends `X-VG-Idempotency-Key`. `withTrace` sends `traceparent`, `X-VG-Parent-Span-Id`, and `X-VG-Agent-Id`. Repair presets stay on the agent. `X-VG-Healed` is set only when the final response passed because of repair. A repair that still blocks is `X-VG-Repair-Attempted` (with `X-VG-Repair-Rules`) and does not set `X-VG-Healed`.

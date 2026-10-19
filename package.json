@@ -1,6 +1,6 @@
 {
   "name": "@valguard/sdk-node",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "OpenAI-compatible client helpers for the ValGuard integrity layer",
   "type": "module",
   "main": "index.js",
@@ -17,6 +17,7 @@
     "headers.js",
     "errors.js",
     "webhook.js",
+    "evidence.js",
     "constants.js",
     "README.md"
   ],
@@ -24,7 +25,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node test/headers.test.mjs && node test/webhook.test.mjs"
+    "test": "node test/headers.test.mjs && node test/webhook.test.mjs && node test/evidence.test.mjs"
   },
   "repository": {
     "type": "git",

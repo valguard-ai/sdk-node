@@ -1,4 +1,10 @@
-export type ValidationStatus = "pass" | "warn" | "block" | "shadow";
+export type ValidationStatus =
+  | "pass"
+  | "warn"
+  | "block"
+  | "shadow"
+  | "stream_passthrough"
+  | "fail";
 
 export type ValidationHeaders = {
   validationStatus: ValidationStatus | null;
@@ -13,6 +19,21 @@ export type ValidationHeaders = {
   orchestrationValidationsUsed: number | null;
   orchestrationExecutionsRemaining: number | "unlimited" | null;
   idempotencyReplayed: boolean;
+  healed: boolean;
+  healedRules: string[];
+  healedEventCount: number | null;
+  healedTrace: string[];
+  cacheStatus: string | null;
+  traceId: string | null;
+  spanId: string | null;
+  parentSpanId: string | null;
+  agentId: string | null;
+  idempotentRunId: string | null;
+  runId: string | null;
+  runStatus: string | null;
+  approvalId: string | null;
+  licenseStatus: string | null;
+  licenseMode: string | null;
 };
 
 export type ValGuardErrorInfo = {
@@ -35,6 +56,11 @@ export type ValGuardOptions = {
   ragSources?: Array<string | { id?: string; text: string }>;
   internalSecret?: string;
   projectId?: string;
+  idempotencyKey?: string;
+  approvalMode?: string;
+  traceparent?: string;
+  parentSpanId?: string;
+  agentId?: string;
 };
 
 export type ChatCompletionRequest = {
@@ -77,6 +103,20 @@ export function signWebhookPayload(rawBody: string | Buffer | Uint8Array, secret
 
 export const WEBHOOK_SIGNATURE_HEADER: "X-VG-Signature";
 
+export const EVIDENCE_TYP: "valguard-evidence/1";
+
+export function verifyEvidence(
+  keyId: string,
+  payload: string,
+  signature: string,
+  secret: string,
+): boolean;
+
+export function verifyProof(
+  envelope: string | { key_id?: string; payload?: string; signature?: string },
+  secret: string,
+): boolean;
+
 export function parseValidationHeaders(
   headers: Headers | Record<string, string | undefined | null>,
 ): ValidationHeaders;
@@ -108,6 +148,13 @@ export function createValGuardClient(opts: ValGuardOptions): {
   withRAGSources(
     sources: Array<string | { id?: string; text: string }>,
   ): ReturnType<typeof createValGuardClient>;
+  withIdempotencyKey(idempotencyKey: string): ReturnType<typeof createValGuardClient>;
+  withApprovalMode(approvalMode: string): ReturnType<typeof createValGuardClient>;
+  withTrace(trace: {
+    traceparent?: string;
+    parentSpanId?: string;
+    agentId?: string;
+  }): ReturnType<typeof createValGuardClient>;
   parseResponseHeaders(headers: Headers | Record<string, string | undefined | null>): ValidationHeaders;
   chatCompletions(
     body: ChatCompletionRequest,
@@ -131,6 +178,9 @@ export default class ValGuard {
   withPlaybook(flowSlug: string): ValGuard;
   withProviderKey(providerKey: string): ValGuard;
   withRAGSources(sources: Array<string | { id?: string; text: string }>): ValGuard;
+  withIdempotencyKey(idempotencyKey: string): ValGuard;
+  withApprovalMode(approvalMode: string): ValGuard;
+  withTrace(trace: { traceparent?: string; parentSpanId?: string; agentId?: string }): ValGuard;
   parseResponseHeaders(headers: Headers | Record<string, string | undefined | null>): ValidationHeaders;
   chatCompletions(
     body: ChatCompletionRequest,
