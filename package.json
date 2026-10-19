@@ -1,6 +1,6 @@
 {
   "name": "@valguard/sdk-node",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "OpenAI-compatible client helpers for the ValGuard integrity layer",
   "type": "module",
   "main": "index.js",
