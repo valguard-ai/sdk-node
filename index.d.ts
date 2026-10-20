@@ -84,6 +84,7 @@ export type ChatCompletionRequest = {
   tool_choice?: unknown;
   parallel_tool_calls?: boolean;
   stream_options?: { include_usage?: boolean };
+  response_format?: { type: string } | Record<string, unknown>;
 };
 
 export type StreamChunkEvent =

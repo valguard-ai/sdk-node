@@ -285,7 +285,12 @@ export function createValGuardClient(opts) {
         if (error && !error.softFail) {
           throw new ValGuardError(response.status, error);
         }
-        return { status: response.status, validation, stream: async function* () {}, error };
+        return {
+          status: response.status,
+          validation,
+          stream: (async function* emptyStream() {})(),
+          error,
+        };
       }
       return {
         status: response.status,
@@ -495,6 +500,10 @@ export default class ValGuard {
 
   chatCompletions(body, requestOpts) {
     return this._client.chatCompletions(body, requestOpts);
+  }
+
+  chatCompletionsStream(body, requestOpts) {
+    return this._client.chatCompletionsStream(body, requestOpts);
   }
 
   testValidators(body, requestOpts) {
