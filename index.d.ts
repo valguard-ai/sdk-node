@@ -63,13 +63,44 @@ export type ValGuardOptions = {
   agentId?: string;
 };
 
+export type ChatToolFunction = {
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+};
+
+export type ChatTool = {
+  type: "function";
+  function: ChatToolFunction;
+};
+
 export type ChatCompletionRequest = {
   model: string;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{ role: string; content: string | null; tool_calls?: unknown; tool_call_id?: string }>;
   stream?: boolean;
   temperature?: number;
   max_tokens?: number;
+  tools?: ChatTool[];
+  tool_choice?: unknown;
+  parallel_tool_calls?: boolean;
+  stream_options?: { include_usage?: boolean };
 };
+
+export type StreamChunkEvent =
+  | { type: "done" }
+  | { type: "raw"; raw: string }
+  | {
+      type: "chunk";
+      id: string | null;
+      model: string | null;
+      delta: {
+        role?: string | null;
+        content?: string | null;
+        tool_calls?: unknown;
+      };
+      finishReason: string | null;
+      usage?: unknown;
+    };
 
 export type ChatCompletionResult = {
   status: number;
@@ -160,6 +191,15 @@ export function createValGuardClient(opts: ValGuardOptions): {
     body: ChatCompletionRequest,
     requestOpts?: { headers?: Record<string, string>; fetch?: typeof fetch },
   ): Promise<ChatCompletionResult>;
+  chatCompletionsStream(
+    body: ChatCompletionRequest,
+    requestOpts?: { headers?: Record<string, string>; fetch?: typeof fetch },
+  ): Promise<{
+    status: number;
+    validation: ValidationHeaders;
+    stream: AsyncIterable<StreamChunkEvent>;
+    error: ValGuardErrorInfo | null;
+  }>;
   testValidators(
     body: TestValidatorsRequest,
     requestOpts?: { headers?: Record<string, string>; fetch?: typeof fetch },
@@ -186,6 +226,15 @@ export default class ValGuard {
     body: ChatCompletionRequest,
     requestOpts?: { headers?: Record<string, string>; fetch?: typeof fetch },
   ): Promise<ChatCompletionResult>;
+  chatCompletionsStream(
+    body: ChatCompletionRequest,
+    requestOpts?: { headers?: Record<string, string>; fetch?: typeof fetch },
+  ): Promise<{
+    status: number;
+    validation: ValidationHeaders;
+    stream: AsyncIterable<StreamChunkEvent>;
+    error: ValGuardErrorInfo | null;
+  }>;
   testValidators(
     body: TestValidatorsRequest,
     requestOpts?: { headers?: Record<string, string>; fetch?: typeof fetch },
@@ -193,3 +242,7 @@ export default class ValGuard {
 }
 
 export { ValGuard };
+
+export function parseChatCompletionStream(
+  body: ReadableStream<Uint8Array>,
+): AsyncIterable<StreamChunkEvent>;

@@ -42,12 +42,46 @@ const vg = ValGuard.fromEnv().withAgent(process.env.VG_AGENT ?? "default");
 const client = new OpenAI(vg.openaiOptions());
 
 const raw = await client.chat.completions.create({
-  model: "openai/gpt-4o-mini",
-  messages: [{ role: "user", content: "Extract invoice JSON" }],
+  model: "groq/openai/gpt-oss-20b",
+  messages: [
+    {
+      role: "user",
+      content: "Return JSON with name Ada Lovelace and email ada@example.com for a demo contact.",
+    },
+  ],
 }).withResponse();
 
 console.log(vg.parseResponseHeaders(raw.response.headers));
 console.log(raw.data);
+```
+
+## Streaming (tool-call deltas)
+
+Playbooks (`X-VG-Flow`) do not support `stream: true`. For single-agent chat, use `chatCompletionsStream` — it parses SSE chunks (including indexed `tool_calls` deltas when the layer buffers the stream):
+
+```js
+import { ValGuard } from "@valguard/sdk-node";
+
+const vg = ValGuard.fromEnv().withAgent("default");
+const { status, validation, stream, error } = await vg.chatCompletionsStream({
+  model: "groq/openai/gpt-oss-20b",
+  stream: true,
+  messages: [{ role: "user", content: "Call get_weather for Warsaw." }],
+  tools: [
+    {
+      type: "function",
+      function: { name: "get_weather", parameters: { type: "object", properties: { city: { type: "string" } } } },
+    },
+  ],
+});
+
+console.log(status, validation);
+for await (const event of stream) {
+  if (event.type === "chunk" && event.delta.tool_calls) {
+    console.log(event.delta.tool_calls);
+  }
+}
+if (error) console.log(error);
 ```
 
 ## Fetch-only (no OpenAI SDK)
@@ -63,8 +97,13 @@ const vg = new ValGuard({
 });
 
 const result = await vg.chatCompletions({
-  model: "openai/gpt-4o-mini",
-  messages: [{ role: "user", content: "hi" }],
+  model: "groq/openai/gpt-oss-20b",
+  messages: [
+    {
+      role: "user",
+      content: JSON.stringify({ email: "ada@example.com", name: "Ada" }),
+    },
+  ],
 });
 
 console.log(result.validation);
@@ -85,10 +124,11 @@ const vg = ValGuard.fromEnv().withRAGSources([
 import { ValGuardError, parseValGuardError } from "@valguard/sdk-node";
 
 try {
-  await vg.chatCompletions({ model: "openai/gpt-4o-mini", messages: [] });
+  await vg.chatCompletions({ model: "groq/openai/gpt-oss-20b", messages: [] });
 } catch (err) {
   if (err instanceof ValGuardError) {
-    console.log(err.info.type); // validation_block | input_validation | rate_limit_exceeded
+    console.log(err.info.type); // validation_block | invalid_request_error | ...
+    console.log(err.info.code); // rate_limited | invalid_api_key | orchestration_stream_unsupported | ...
   }
 }
 ```
@@ -105,5 +145,6 @@ Soft-fail agents return HTTP 200 with `{ valid: false, validation: {...} }` — 
 | `verifyProof()` / `verifyEvidence()` | Offline HMAC check of a Proof download (`valguard-evidence/1`) |
 | `parseValGuardError()` | Parse error / soft-fail JSON |
 | `ValGuardError` | Thrown on non-2xx responses |
+| `chatCompletionsStream()` / `parseChatCompletionStream()` | SSE streaming with tool-call delta parsing |
 
 `withAgent(slug)` sets `X-VG-Agent`. `withPlaybook(slug)` sets `X-VG-Flow` and clears the agent header. `withApprovalMode("async")` sends `X-VG-Approval-Mode` for playbooks that pause on a human approval step. `openaiOptions()` forwards `X-Provider-Key` when `providerKey` is set. `withIdempotencyKey` sends `X-VG-Idempotency-Key`. `withTrace` sends `traceparent`, `X-VG-Parent-Span-Id`, and `X-VG-Agent-Id`. Repair presets stay on the agent. `X-VG-Healed` is set only when the final response passed because of repair. A repair that still blocks is `X-VG-Repair-Attempted` (with `X-VG-Repair-Rules`) and does not set `X-VG-Healed`.

@@ -6,6 +6,9 @@ import {
   WEBHOOK_SIGNATURE_HEADER,
 } from "./webhook.js";
 import { verifyEvidence, verifyProof, EVIDENCE_TYP } from "./evidence.js";
+import { parseChatCompletionStream } from "./stream.js";
+
+export { parseChatCompletionStream };
 
 export {
   parseValidationHeaders,
@@ -242,6 +245,53 @@ export function createValGuardClient(opts) {
         data,
         validation,
         error,
+      };
+    },
+
+    /**
+     * Streaming chat completions: returns parsed SSE events (not raw text).
+     * @param {ChatCompletionRequest & { tools?: unknown, tool_choice?: unknown }} body
+     * @param {{ headers?: Record<string, string>, fetch?: typeof fetch }} [requestOpts]
+     * @returns {Promise<{ status: number, validation: import("./headers.js").ValidationHeaders, stream: AsyncIterable<import("./stream.js").StreamChunkEvent>, error: import("./errors.js").ValGuardErrorInfo | null }>}
+     */
+    async chatCompletionsStream(body, requestOpts = {}) {
+      const fetchImpl = requestOpts.fetch ?? globalThis.fetch;
+      if (!fetchImpl) {
+        throw new Error("fetch is not available — pass requestOpts.fetch");
+      }
+      const headers = {
+        ...buildHeaders(opts),
+        "Content-Type": "application/json",
+        Accept: "text/event-stream",
+        ...requestOpts.headers,
+      };
+      const response = await fetchImpl(`${base}/v1/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ ...body, stream: true }),
+      });
+      const validation = parseValidationHeaders(response.headers);
+      if (!response.ok || !response.body) {
+        const text = await response.text();
+        let data = null;
+        if (text) {
+          try {
+            data = JSON.parse(text);
+          } catch {
+            data = text;
+          }
+        }
+        const error = parseValGuardError(response.status, data);
+        if (error && !error.softFail) {
+          throw new ValGuardError(response.status, error);
+        }
+        return { status: response.status, validation, stream: async function* () {}, error };
+      }
+      return {
+        status: response.status,
+        validation,
+        stream: parseChatCompletionStream(response.body),
+        error: null,
       };
     },
   };
