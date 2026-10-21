@@ -17,7 +17,7 @@ npm install @valguard/sdk-node openai
 ```bash
 export VG_PROXY="https://api.valguard.ai"   # your layer base URL
 export VG_API_KEY="vg_live_..."
-export VG_AGENT="invoice_extraction_agent"
+export VG_AGENT="default"                     # must be an agent slug that exists in your org
 export VG_PROVIDER_KEY="gsk_..."              # optional BYOK upstream key (Groq-style)
 ```
 
@@ -55,9 +55,9 @@ console.log(vg.parseResponseHeaders(raw.response.headers));
 console.log(raw.data);
 ```
 
-## Streaming (tool-call deltas)
+## Streaming chat completions
 
-Playbooks (`X-VG-Flow`) do not support `stream: true`. For single-agent chat, use `chatCompletionsStream` — it parses SSE chunks (including indexed `tool_calls` deltas when the layer buffers the stream):
+Playbooks (`X-VG-Flow`) do not support `stream: true`. For single-agent chat, use `chatCompletionsStream` — it parses SSE chunks and surfaces `delta.content` (and indexed `tool_calls` deltas when you pass `tools` and the layer buffers the stream):
 
 ```js
 import { ValGuard } from "@valguard/sdk-node";
@@ -88,11 +88,18 @@ if (error) console.log(error);
 ```js
 import { ValGuard } from "@valguard/sdk-node";
 
+const apiKey = process.env.VG_API_KEY;
+const baseURL = process.env.VG_PROXY;
+const providerKey = process.env.VG_PROVIDER_KEY;
+if (!apiKey || !baseURL) {
+  throw new Error("Set VG_API_KEY and VG_PROXY");
+}
+
 const vg = new ValGuard({
-  apiKey: process.env.VG_API_KEY,
-  baseURL: process.env.VG_PROXY,
+  apiKey,
+  baseURL,
   agentSlug: "default",
-  providerKey: process.env.VG_PROVIDER_KEY,
+  providerKey,
 });
 
 const result = await vg.chatCompletions({
