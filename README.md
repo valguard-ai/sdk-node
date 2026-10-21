@@ -18,7 +18,7 @@ npm install @valguard/sdk-node openai
 export VG_PROXY="https://api.valguard.ai"   # your layer base URL
 export VG_API_KEY="vg_live_..."
 export VG_AGENT="invoice_extraction_agent"
-export VG_PROVIDER_KEY="sk-..."             # optional BYOK upstream key
+export VG_PROVIDER_KEY="gsk_..."              # optional BYOK upstream key (Groq-style)
 ```
 
 ## withAgent and withPlaybook
@@ -66,19 +66,18 @@ const vg = ValGuard.fromEnv().withAgent("default");
 const { status, validation, stream, error } = await vg.chatCompletionsStream({
   model: "groq/openai/gpt-oss-20b",
   stream: true,
-  messages: [{ role: "user", content: "Call get_weather for Warsaw." }],
-  tools: [
+  messages: [
     {
-      type: "function",
-      function: { name: "get_weather", parameters: { type: "object", properties: { city: { type: "string" } } } },
+      role: "user",
+      content: "Return JSON with name Ada Lovelace and email ada@example.com for a demo contact.",
     },
   ],
 });
 
 console.log(status, validation);
 for await (const event of stream) {
-  if (event.type === "chunk" && event.delta.tool_calls) {
-    console.log(event.delta.tool_calls);
+  if (event.type === "chunk" && event.delta?.content) {
+    process.stdout.write(event.delta.content);
   }
 }
 if (error) console.log(error);
@@ -101,7 +100,7 @@ const result = await vg.chatCompletions({
   messages: [
     {
       role: "user",
-      content: JSON.stringify({ email: "ada@example.com", name: "Ada" }),
+      content: "Return JSON with name Ada Lovelace and email ada@example.com for a demo contact.",
     },
   ],
 });
