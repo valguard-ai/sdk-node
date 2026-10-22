@@ -26,7 +26,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node test/headers.test.mjs && node test/webhook.test.mjs && node test/evidence.test.mjs && node test/stream.test.mjs && node test/valguard-class-stream.test.mjs && node test/readme-fetch-strict.test.mjs"
+    "test": "node test/headers.test.mjs && node test/webhook.test.mjs && node test/evidence.test.mjs && node test/stream.test.mjs && node test/valguard-class-stream.test.mjs && node test/readme-fetch-strict.test.mjs && node test/readme-examples-live.test.mjs"
   },
   "repository": {
     "type": "git",
@@ -36,5 +36,8 @@
   "bugs": {
     "url": "https://github.com/valguard-ai/sdk-node/issues"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
 }

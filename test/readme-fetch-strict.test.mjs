@@ -3,13 +3,12 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const webTsc = path.resolve(pkgDir, "../../apps/web/node_modules/typescript/bin/tsc");
-const tsc = spawnSync(process.execPath, [webTsc, "-p", "tsconfig.readme.json"], {
+const pkgDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+const tsc = spawnSync("npx", ["tsc", "-p", "tsconfig.readme.json"], {
   cwd: pkgDir,
   encoding: "utf8",
+  stdio: ["ignore", "pipe", "pipe"],
 });
-
 if (tsc.status !== 0) {
   console.error(tsc.stdout);
   console.error(tsc.stderr);
