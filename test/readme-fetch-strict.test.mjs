@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const pkgDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
-const tsc = spawnSync("npx", ["tsc", "-p", "tsconfig.readme.json"], {
+const tsc = spawnSync("npx", ["--no-install", "tsc", "-p", "tsconfig.readme.json"], {
   cwd: pkgDir,
   encoding: "utf8",
   stdio: ["ignore", "pipe", "pipe"],
